@@ -969,9 +969,10 @@ class ColdInputResistanceDialog(wx.Dialog):
 
         if messages:
             message = "Обнаружены проблемы:\n" + "\n".join(messages)
-            wx.CallAfter(wx.MessageBox, message, "Результаты проверки", wx.OK | wx.ICON_WARNING)
+            wx.CallAfter(lambda: (wx.MessageBox, message, "Результаты проверки", wx.OK | wx.ICON_WARNING))
         else:
-            wx.CallAfter(wx.MessageBox, "Все параметры в норме!", "Результаты проверки", wx.OK | wx.ICON_INFORMATION)
+            wx.CallAfter(lambda: wx.MessageBox("Все параметры в норме!", "Результаты проверки",
+                                               wx.OK | wx.ICON_INFORMATION))
 
     def on_measurement_error(self, message):
         self.log_message(f"Ошибка: {message}")
