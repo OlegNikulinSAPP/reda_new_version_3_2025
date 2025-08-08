@@ -30,6 +30,7 @@ class ModelSelectorPanel(wx.Panel):
         # Установка цвета фона панели (светло-голубой)
         self.SetBackgroundColour(wx.Colour(250, 252, 255))
 
+
         # Инициализация переменных для работы с БД
         self.db_path = db_path  # Сохраняем путь к БД
         self.conn = None  # Будущее соединение с БД
