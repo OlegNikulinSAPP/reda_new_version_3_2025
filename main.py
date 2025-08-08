@@ -800,7 +800,7 @@ class ColdInputResistanceDialog(wx.Dialog):
 
     def run_measurements(self):
         try:
-            # Инициализация COM-порта (в реальном приборе нужно указать правильный порт)
+            # Инициализация COM-порта (указать правильный порт)
             self.ser = serial.Serial(
                 port='COM7',  # Замените на актуальный порт
                 baudrate=9600,  # Скорость обмена
