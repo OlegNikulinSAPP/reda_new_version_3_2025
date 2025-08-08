@@ -118,7 +118,7 @@ class ModelSelectorPanel(wx.Panel):
         self.select_btn.Disable()
 
     def connect_db(self):
-        """Устанавливает соединение с базой данных SQLite."""
+        """Устанавливает соединение с базой данных"""
         try:
             # Создание соединения с БД
             self.conn = sqlite3.connect(self.db_path)
