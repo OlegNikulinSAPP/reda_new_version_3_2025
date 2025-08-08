@@ -125,7 +125,7 @@ class ModelSelectorPanel(wx.Panel):
             # Создание курсора для выполнения запросов
             self.cursor = self.conn.cursor()
         except sqlite3.Error as e:
-            # Вывод сообщения об ошибке при проблемах с подключением
+            # Вывод сообщения об ошибке при проблемах с подключением к базе
             wx.MessageBox(f"Ошибка подключения к базе данных: {str(e)}", "Ошибка", wx.OK | wx.ICON_ERROR)
 
     def load_all_models(self):
