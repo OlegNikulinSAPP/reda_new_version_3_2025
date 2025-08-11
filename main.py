@@ -30,6 +30,7 @@ class ModelSelectorPanel(wx.Panel):
         # Установка цвета фона панели (светло-голубой)
         self.SetBackgroundColour(wx.Colour(250, 252, 255))
 
+
         # Инициализация переменных для работы с БД
         self.db_path = db_path  # Сохраняем путь к БД
         self.conn = None  # Будущее соединение с БД
@@ -117,7 +118,7 @@ class ModelSelectorPanel(wx.Panel):
         self.select_btn.Disable()
 
     def connect_db(self):
-        """Устанавливает соединение с базой данных SQLite."""
+        """Устанавливает соединение с базой данных"""
         try:
             # Создание соединения с БД
             self.conn = sqlite3.connect(self.db_path)
