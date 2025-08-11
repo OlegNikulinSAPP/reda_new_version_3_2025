@@ -607,7 +607,7 @@ class DatabaseTab(wx.Panel):
                         except ValueError:
                             data.append(value)
 
-                # Обновление или вставка
+                # Обновление или вставка (параметры ЭД)
                 if exists:
                     update_query = """
                     UPDATE Base SET
