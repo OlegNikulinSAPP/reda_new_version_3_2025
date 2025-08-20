@@ -645,6 +645,7 @@ class DatabaseTab(wx.Panel):
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """
                     self.cursor.execute(insert_query, tuple(data))
+
                     # Получаем ID новой записи
                     new_id = self.cursor.lastrowid
                     self.grid.SetCellValue(row, 0, str(new_id))
@@ -720,7 +721,7 @@ class ColdInputResistanceDialog(wx.Dialog):
         params_sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 10)
         sizer.Add(params_sizer, 0, wx.EXPAND | wx.ALL, 10)
 
-        # Чекбоксы обкатки
+        # Чек-боксы обкатки
         run_box = wx.StaticBox(self, label="Тип обкатки")
         run_sizer = wx.StaticBoxSizer(run_box, wx.HORIZONTAL)
 
