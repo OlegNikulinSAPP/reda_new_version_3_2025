@@ -1,88 +1,9 @@
 import wx
 import wx.lib.scrolledpanel as scrolled
-from PIL import Image, ImageDraw, ImageFont
-import io
 import os
 
 
-class EmojiMixin:
-    """Миксин для отображения цветных эмодзи в wxPython"""
-
-    def create_emoji_bitmap(self, emoji_text, font_size=14, size=(24, 24)):
-        """Создает bitmap с цветным эмодзи"""
-        try:
-            # Создаем изображение с прозрачным фоном
-            image = Image.new('RGBA', size, (0, 0, 0, 0))
-            draw = ImageDraw.Draw(image)
-
-            # Пытаемся использовать шрифт с эмодзи
-            try:
-                font = ImageFont.truetype("seguiemj.ttf", font_size)
-            except:
-                try:
-                    font = ImageFont.truetype("Apple Color Emoji", font_size)
-                except:
-                    try:
-                        font = ImageFont.truetype("NotoColorEmoji.ttf", font_size)
-                    except:
-                        # Если не нашли подходящий шрифт, используем стандартный
-                        font = ImageFont.load_default()
-
-            # Рисуем эмодзи
-            bbox = draw.textbbox((0, 0), emoji_text, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-            position = ((size[0] - text_width) // 2, (size[1] - text_height) // 2)
-
-            draw.text(position, emoji_text, font=font, embedded_color=True)
-
-            # Конвертируем PIL Image в wx.Bitmap
-            buffer = io.BytesIO()
-            image.save(buffer, format="PNG")
-            buffer.seek(0)
-            return wx.Bitmap(wx.Image(buffer))
-        except Exception as e:
-            print(f"Ошибка создания эмодзи: {e}")
-            # Возвращаем пустой bitmap в случае ошибки
-            return wx.Bitmap(size[0], size[1])
-
-    def create_emoji_button(self, parent, emoji_text, label_text, size=(140, 40)):
-        """Создает кнопку с эмодзи и текстом"""
-        # Создаем панель для кнопки
-        panel = wx.Panel(parent, size=size)
-        panel.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
-
-        # Создаем sizer для панели
-        sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        # Создаем bitmap с эмодзи
-        emoji_bitmap = self.create_emoji_bitmap(emoji_text, 16, (20, 20))
-        emoji_ctrl = wx.StaticBitmap(panel, bitmap=emoji_bitmap)
-
-        # Создаем текст
-        text_ctrl = wx.StaticText(panel, label=label_text)
-
-        # Добавляем элементы в sizer
-        sizer.Add(emoji_ctrl, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 5)
-        sizer.Add(text_ctrl, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 5)
-
-        panel.SetSizer(sizer)
-
-        # Создаем прозрачную кнопку поверх панели
-        button = wx.Button(parent, label="", size=size)
-        button.SetBackgroundColour(wx.NullColour)  # Исправлено: wx.NullColour вместо wx.TRANSPARENT
-
-        # Привязываем обработчик событий для кнопки
-        button.Bind(wx.EVT_BUTTON, lambda event: self.on_button_click(label_text))
-
-        return button, panel
-
-    def on_button_click(self, button_name):
-        """Обработчик нажатия кнопки"""
-        print(f"Нажата кнопка: {button_name}")
-
-
-class MyFrame(wx.Frame, EmojiMixin):
+class MyFrame(wx.Frame):
     def __init__(self):
         super().__init__(None, title="Приложение с параметрами ПЭД",
                          style=wx.DEFAULT_FRAME_STYLE, size=(1600, 900))
@@ -176,35 +97,39 @@ class MyFrame(wx.Frame, EmojiMixin):
         # Используем BoxSizer, который растягивается на всю высоту
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Список названий кнопок с эмодзи
+        # Список названий кнопок с иконками
         button_data = [
-            ("📥", "Загрузить"),
-            ("💾", "Сохранить"),
-            ("🧮", "Рассчитать"),
-            ("🧹", "Очистить"),
-            ("📊", "Экспорт"),
-            ("📁", "Импорт"),
-            ("🖨️", "Печать"),
-            ("⚙️", "Настройки"),
-            ("❓", "Справка"),
-            ("ℹ️", "О программе"),
-            ("🔧", "Инструмент 1"),
-            ("🔨", "Инструмент 2"),
-            ("📏", "Измерение"),
-            ("📐", "Калибровка"),
-            ("🔍", "Поиск")
+            ("Загрузить", wx.ART_FILE_OPEN),
+            ("Сохранить", wx.ART_FILE_SAVE),
+            ("Рассчитать", wx.ART_EXECUTABLE_FILE),
+            ("Очистить", wx.ART_DELETE),
+            ("Экспорт", wx.ART_GO_DIR_UP),
+            ("Импорт", wx.ART_GO_DOWN),
+            ("Печать", wx.ART_PRINT),
+            ("Настройки", wx.ART_LIST_VIEW),
+            ("Справка", wx.ART_HELP),
+            ("О программе", wx.ART_INFORMATION),
+            ("Инструмент 1", wx.ART_EXECUTABLE_FILE),
+            ("Инструмент 2", wx.ART_NORMAL_FILE),
+            ("Измерение", wx.ART_FIND),
+            ("Калибровка", wx.ART_EXECUTABLE_FILE),
+            ("Поиск", wx.ART_FIND_AND_REPLACE)
         ]
 
-        # Создаем кнопки с индивидуальными названиями
+        # Создаем кнопки с иконками и текстом
         self.buttons = []
-        self.button_panels = []
+        for text, art_id in button_data:
+            # Создаем кнопку с текстом
+            button = wx.Button(parent, label=text, size=(150, 40))
 
-        for emoji, text in button_data:
-            button, button_panel = self.create_emoji_button(parent, emoji, text, size=(150, 40))
-            sizer.Add(button_panel, 0, wx.EXPAND | wx.ALL, 2)
+            # Добавляем иконку, если она доступна
+            if art_id:
+                bmp = wx.ArtProvider.GetBitmap(art_id, wx.ART_BUTTON, (16, 16))
+                if bmp.IsOk():
+                    button.SetBitmap(bmp, wx.LEFT)
+
             sizer.Add(button, 0, wx.EXPAND | wx.ALL, 2)
             self.buttons.append(button)
-            self.button_panels.append(button_panel)
 
         # Добавляем растягивающийся спейсер, чтобы кнопки занимали всю высоту
         sizer.AddStretchSpacer(1)
@@ -227,40 +152,40 @@ class MyFrame(wx.Frame, EmojiMixin):
 
     def create_parameters_column(self, parent):
         """Создает колонку с таблицей параметров, которая заполняет всю высоту"""
-        # Список параметров с эмодзи
+        # Список параметров
         parameters = [
-            ("⚡ Напряжение трансформатора, В", ""),
-            ("📋 Номинальные параметры ПЭД", "header"),
-            ("🔧 Тип", ""),
-            ("💪 Мощность, кВт", ""),
-            ("⚡ Напряжение, В", ""),
-            ("🔌 Ток, А", ""),
-            ("🔄 Частота вращения", ""),
-            ("📏 Сопр. обмотки (Ом)", ""),
-            ("📊 Сопр. изоляции, МОм", ""),
-            ("🚀 Напр. разгона, В", ""),
-            ("⚙️ Момент проворачивания", ""),
-            ("⚡ Напр. к.з., В", ""),
-            ("🔌 Ток к.з., А", ""),
-            ("💥 Потери к.з., кВт", ""),
-            ("🔌 Ток х.х., А", ""),
-            ("⚡ Напр. х.х., В", ""),
-            ("💥 Потери х.х., кВт", ""),
-            ("⏱️ Выбег, с", ""),
-            ("📳 Вибрация, мм/с", ""),
-            ("⚙️ Крутящий момент", ""),
-            ("💥 Потери в нагр. сост.", ""),
-            ("⚡ Испыт. напр. изол., В", ""),
-            ("🔌 Испыт. изол. обм., В", ""),
-            ("⚡ Напр. опыта КЗ", "")
+            ("Напряжение трансформатора, В", ""),
+            ("Номинальные параметры ПЭД", "header"),
+            ("Тип", ""),
+            ("Мощность, кВт", ""),
+            ("Напряжение, В", ""),
+            ("Ток, А", ""),
+            ("Частота вращения", ""),
+            ("Сопр. обмотки (Ом)", ""),
+            ("Сопр. изоляции, МОм", ""),
+            ("Напр. разгона, В", ""),
+            ("Момент проворачивания", ""),
+            ("Напр. к.з., В", ""),
+            ("Ток к.з., А", ""),
+            ("Потери к.з., кВт", ""),
+            ("Ток х.х., А", ""),
+            ("Напр. х.х., В", ""),
+            ("Потери х.х., кВт", ""),
+            ("Выбег, с", ""),
+            ("Вибрация, мм/с", ""),
+            ("Крутящий момент", ""),
+            ("Потери в нагр. сост.", ""),
+            ("Испыт. напр. изол., В", ""),
+            ("Испыт. изол. обм., В", ""),
+            ("Напр. опыта КЗ", "")
         ]
 
         # Создаем сетку для параметров
-        grid = wx.FlexGridSizer(len(parameters), 2, 3, 3)
+        grid = wx.FlexGridSizer(len(parameters), 2, 5, 5)
         grid.AddGrowableCol(1, 1)  # Разрешаем растягивание второй колонки
 
         # Создаем шрифт для заголовка
-        bold_font = wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        bold_font = wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
 
         # Добавляем параметры в сетку
         self.param_fields = {}
@@ -274,7 +199,7 @@ class MyFrame(wx.Frame, EmojiMixin):
             else:
                 # Обычный параметр
                 label = wx.StaticText(parent, label=param)
-                text_ctrl = wx.TextCtrl(parent, size=(180, -1))
+                text_ctrl = wx.TextCtrl(parent, size=(150, -1))
                 self.param_fields[param] = text_ctrl
 
                 grid.Add(label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 3)
@@ -292,40 +217,40 @@ class MyFrame(wx.Frame, EmojiMixin):
         title.SetFont(wx.Font(11, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
         sizer.Add(title, 0, wx.ALL, 5)
 
-        # Таблица параметров протокола с эмодзи
+        # Таблица параметров протокола
         protocol_params = [
-            "🧪 Новый тест",
-            "📋 Номер протокола",
-            "👥 Группа исполнения",
-            "🔢 Номер ЭД",
-            "🏷️ Категория исполнения",
-            "🛢️ Тип масла",
-            "🔩 Тип муфты",
-            "📅 Дата и время",
-            "🏷️ Проверка маркировки",
-            "📏 Радиальное биение",
-            "🔧 Тип РТИ",
-            "📐 Диаметр вала, мм",
-            "⚡ Тип ТМС/ конденсатора",
-            "⏱️ Длительность обжатки",
-            "📏 Вылет вала",
-            "🔗 Сочленение шлицевых соединений",
-            "🔌 Тип блока ТМС",
-            "💾 Версия прошивки",
-            "👤 Оператор"
+            ("Новый тест", "header"),
+            ("Номер протокола", ""),
+            ("Группа исполнения", ""),
+            ("Номер ЭД", ""),
+            ("Категория исполнения", ""),
+            ("Тип масла", ""),
+            ("Тип муфты", ""),
+            ("Дата и время", ""),
+            ("Проверка маркировки", ""),
+            ("Радиальное биение", ""),
+            ("Тип РТИ", ""),
+            ("Диаметр вала, мм", ""),
+            ("Тип ТМС/ конденсатора", ""),
+            ("Длительность обжатки", ""),
+            ("Вылет вала", ""),
+            ("Сочленение шлицевых соединений", ""),
+            ("Тип блока ТМС", ""),
+            ("Версия прошивки", ""),
+            ("Оператор", "")
         ]
 
         # Создаем сетку для параметров протокола
-        grid = wx.FlexGridSizer(len(protocol_params), 2, 3, 3)
-        grid.AddGrowableCol(0, 1)  # Разрешаем растягивание первой колонки
+        grid = wx.FlexGridSizer(len(protocol_params), 2, 5, 5)
+        grid.AddGrowableCol(1, 1)  # Разрешаем растягивание второй колонки
 
         # Создаем шрифт для заголовка
-        bold_font = wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        bold_font = wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
 
         # Добавляем параметры в сетку (поля ввода вместо чекбоксов)
         self.protocol_fields = {}
-        for param in protocol_params:
-            if param == "🧪 Новый тест":
+        for param, param_type in protocol_params:
+            if param_type == "header":
                 # Заголовок - занимает всю ширину
                 header = wx.StaticText(parent, label=param)
                 header.SetFont(bold_font)
@@ -334,7 +259,7 @@ class MyFrame(wx.Frame, EmojiMixin):
             else:
                 # Обычный параметр с полем ввода
                 label = wx.StaticText(parent, label=param)
-                text_ctrl = wx.TextCtrl(parent, size=(180, -1))
+                text_ctrl = wx.TextCtrl(parent, size=(150, -1))
                 self.protocol_fields[param] = text_ctrl
 
                 grid.Add(label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 3)
@@ -342,16 +267,17 @@ class MyFrame(wx.Frame, EmojiMixin):
 
         sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 5)
 
-        # Кнопки Сохранить и Редактировать с эмодзи
+        # Кнопки Сохранить и Редактировать
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        # Создаем кнопки с эмодзи
-        btn_save, btn_save_panel = self.create_emoji_button(parent, "💾", "Сохранить", size=(100, 40))
-        btn_edit, btn_edit_panel = self.create_emoji_button(parent, "✏️", "Редактировать", size=(100, 40))
+        # Создаем кнопки
+        btn_save = wx.Button(parent, label="Сохранить", size=(120, 40))
+        btn_save.SetBitmap(wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE, wx.ART_BUTTON, (16, 16)), wx.LEFT)
 
-        button_sizer.Add(btn_save_panel, 0, wx.ALL, 5)
+        btn_edit = wx.Button(parent, label="Редактировать", size=(120, 40))
+        btn_edit.SetBitmap(wx.ArtProvider.GetBitmap(wx.ART_EDIT, wx.ART_BUTTON, (16, 16)), wx.LEFT)
+
         button_sizer.Add(btn_save, 0, wx.ALL, 5)
-        button_sizer.Add(btn_edit_panel, 0, wx.ALL, 5)
         button_sizer.Add(btn_edit, 0, wx.ALL, 5)
 
         sizer.Add(button_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 5)
