@@ -1,6 +1,5 @@
 import wx
 import wx.lib.scrolledpanel as scrolled
-import wx
 import wx.lib.newevent
 import win32com.client as win32
 from pathlib import Path
@@ -12,8 +11,6 @@ ExperienceOneEndedEvent, EVT_EXPERIENCE_ONE_ENDED = wx.lib.newevent.NewEvent()
 class ExperienceOneDialog(wx.Dialog):
     def __init__(self, parent):
         super().__init__(parent, title="1. Измерение напряжения пробоя масла холодного ПЭД", size=(602, 294))
-        # Убираем проблемную строку
-        # self.SetWindowStyle(self.GetWindowStyle() & ~wx.WINDOW_CONTEXT_HELP_BUTTON)
 
         self.file_protocol = None
         self.init_ui()
@@ -24,7 +21,8 @@ class ExperienceOneDialog(wx.Dialog):
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # Инструкция
-        instruction_text = "Возьмите пробу масла. Произведите измерение напряжения пробоя масла. Введите измеренное и паспортное значение:"
+        instruction_text = ("Возьмите пробу масла. Произведите измерение напряжения пробоя масла. Введите измеренное и "
+                            "паспортное значение:")
         instruction = wx.StaticText(panel, label=instruction_text)
         instruction.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
         instruction.SetForegroundColour(wx.Colour(85, 0, 255))
