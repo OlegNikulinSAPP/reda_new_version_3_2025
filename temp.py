@@ -1,6 +1,219 @@
 import wx
 import wx.lib.scrolledpanel as scrolled
-import os
+import wx
+import wx.lib.newevent
+import win32com.client as win32
+from pathlib import Path
+
+# Создаем пользовательское событие для сигнала о завершении опыта
+ExperienceOneEndedEvent, EVT_EXPERIENCE_ONE_ENDED = wx.lib.newevent.NewEvent()
+
+
+class ExperienceOneDialog(wx.Dialog):
+    def __init__(self, parent):
+        super().__init__(parent, title="1. Измерение напряжения пробоя масла холодного ПЭД", size=(602, 294))
+        # Убираем проблемную строку
+        # self.SetWindowStyle(self.GetWindowStyle() & ~wx.WINDOW_CONTEXT_HELP_BUTTON)
+
+        self.file_protocol = None
+        self.init_ui()
+        self.Centre()
+
+    def init_ui(self):
+        panel = wx.Panel(self)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Инструкция
+        instruction_text = "Возьмите пробу масла. Произведите измерение напряжения пробоя масла. Введите измеренное и паспортное значение:"
+        instruction = wx.StaticText(panel, label=instruction_text)
+        instruction.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        instruction.SetForegroundColour(wx.Colour(85, 0, 255))
+        main_sizer.Add(instruction, 0, wx.ALL | wx.ALIGN_CENTER, 10)
+
+        # Создаем горизонтальный сайзер для основного содержимого
+        content_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Левая часть с формой
+        form_panel = wx.Panel(panel)
+        form_sizer = wx.GridBagSizer(5, 5)
+
+        lbl_voltage = wx.StaticText(form_panel, label="Напряжение пробоя масла, кВ")
+        lbl_voltage.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        lbl_voltage.SetForegroundColour(wx.Colour(85, 0, 255))
+        self.txt_voltage = wx.TextCtrl(form_panel, style=wx.TE_PROCESS_ENTER)
+        self.txt_voltage.SetValidator(NumberValidator())
+
+        lbl_nominal = wx.StaticText(form_panel, label="Паспортное значение, кВ")
+        lbl_nominal.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        lbl_nominal.SetForegroundColour(wx.Colour(85, 0, 255))
+        self.txt_nominal = wx.TextCtrl(form_panel, style=wx.TE_PROCESS_ENTER)
+        self.txt_nominal.SetValidator(NumberValidator())
+
+        lbl_result = wx.StaticText(form_panel, label="Результат")
+        lbl_result.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        lbl_result.SetForegroundColour(wx.Colour(85, 0, 255))
+        self.txt_result = wx.TextCtrl(form_panel, style=wx.TE_READONLY)
+        self.txt_result.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+
+        form_sizer.Add(lbl_voltage, (0, 0), flag=wx.ALIGN_CENTER_VERTICAL)
+        form_sizer.Add(self.txt_voltage, (0, 1))
+        form_sizer.Add(lbl_nominal, (1, 0), flag=wx.ALIGN_CENTER_VERTICAL)
+        form_sizer.Add(self.txt_nominal, (1, 1))
+        form_sizer.Add(lbl_result, (2, 0), flag=wx.ALIGN_CENTER_VERTICAL)
+        form_sizer.Add(self.txt_result, (2, 1))
+
+        # Чекбоксы
+        self.check_first = wx.CheckBox(form_panel, label="Первая обкатка")
+        self.check_first.SetValue(True)
+        self.check_first.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+
+        self.check_second = wx.CheckBox(form_panel, label="Вторая обкатка")
+        self.check_second.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+
+        form_sizer.Add(self.check_first, (3, 0), flag=wx.TOP, border=10)
+        form_sizer.Add(self.check_second, (4, 0), flag=wx.TOP, border=5)
+
+        form_panel.SetSizer(form_sizer)
+        content_sizer.Add(form_panel, 0, wx.ALL, 10)
+
+        # Правая часть с пояснением
+        right_text = "Для успешного испытания необходимо чтобы напряжение пробоя масла было больше паспортного значения"
+        right_label = wx.StaticText(panel, label=right_text)
+        right_label.Wrap(200)  # Перенос текста
+        content_sizer.Add(right_label, 0, wx.ALL | wx.ALIGN_CENTER, 10)
+
+        main_sizer.Add(content_sizer, 0, wx.EXPAND)
+
+        # Кнопка сохранения
+        self.btn_save = wx.Button(panel, label="Сохранить")
+        self.btn_save.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        self.btn_save.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        self.btn_save.SetBackgroundColour(wx.Colour(255, 255, 127))
+        self.btn_save.Bind(wx.EVT_BUTTON, self.on_save)
+
+        main_sizer.Add(self.btn_save, 0, wx.ALIGN_RIGHT | wx.RIGHT | wx.BOTTOM, 10)
+
+        # Бинды для чекбоксов
+        self.check_first.Bind(wx.EVT_CHECKBOX, self.on_checkbox)
+        self.check_second.Bind(wx.EVT_CHECKBOX, self.on_checkbox)
+
+        panel.SetSizer(main_sizer)
+
+        # Устанавливаем сайзер для диалога
+        dialog_sizer = wx.BoxSizer(wx.VERTICAL)
+        dialog_sizer.Add(panel, 1, wx.EXPAND)
+        self.SetSizer(dialog_sizer)
+        self.Layout()
+
+    def on_checkbox(self, event):
+        # Обработка взаимного исключения чекбоксов
+        checkbox = event.GetEventObject()
+        if checkbox == self.check_first and checkbox.IsChecked():
+            self.check_second.SetValue(False)
+        elif checkbox == self.check_second and checkbox.IsChecked():
+            self.check_first.SetValue(False)
+
+    def on_save(self, event):
+        # Проверка заполнения полей
+        if not self.txt_voltage.GetValue() or not self.txt_nominal.GetValue():
+            wx.MessageBox("Не заполнено одно из полей!", "Предупреждение!", wx.OK | wx.ICON_WARNING)
+            return
+
+        # Сравнение значений
+        nominal = int(self.txt_nominal.GetValue())
+        voltage = int(self.txt_voltage.GetValue())
+
+        if nominal > voltage:
+            self.txt_result.SetValue("Не годно!")
+        else:
+            self.txt_result.SetValue("Годно")
+
+        # Изменение вида кнопки
+        self.btn_save.Enable(False)
+        self.btn_save.SetBackgroundColour(wx.Colour(51, 255, 153))
+        self.Refresh()
+
+        # Сохранение в Excel
+        try:
+            excel = win32.gencache.EnsureDispatch('Excel.Application')
+            excel.Visible = False
+            excel.DisplayAlerts = False
+
+            workbook = excel.Workbooks.Open(self.file_protocol)
+            sheet = workbook.Worksheets(1)
+
+            sheet.Cells(22, 19).Value = self.txt_result.GetValue()
+            sheet.Cells(22, 10).Value = nominal
+
+            if self.check_first.GetValue():
+                sheet.Cells(22, 13).Value = voltage
+            elif self.check_second.GetValue():
+                sheet.Cells(22, 16).Value = voltage
+            else:
+                wx.MessageBox("Выберите номер обкатки!", "Предупреждение!", wx.OK | wx.ICON_WARNING)
+                workbook.Close(SaveChanges=False)
+                excel.Quit()
+                return
+
+            workbook.Close(SaveChanges=True)
+            excel.Quit()
+
+        except Exception as e:
+            wx.MessageBox(f"Ошибка при работе с Excel: {str(e)}", "Ошибка", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Закрытие окна и отправка события
+        self.EndModal(wx.ID_OK)
+        wx.PostEvent(self, ExperienceOneEndedEvent())
+
+    def set_file_protocol(self, file_path):
+        self.file_protocol = str(Path(file_path).resolve())
+
+    def reset_state(self):
+        # Сброс состояния при закрытии
+        self.txt_result.SetValue("")
+        self.txt_nominal.SetValue("")
+        self.txt_voltage.SetValue("")
+        self.btn_save.Enable(True)
+        self.btn_save.SetBackgroundColour(wx.Colour(255, 255, 127))
+        self.check_first.SetValue(True)
+        self.check_second.SetValue(False)
+
+    def on_close(self, event):
+        self.reset_state()
+        event.Skip()
+
+
+
+class NumberValidator(wx.Validator):
+    def __init__(self):
+        super().__init__()
+        self.Bind(wx.EVT_CHAR, self.on_char)
+
+    def on_char(self, event):
+        key = event.GetKeyCode()
+        if key < wx.WXK_SPACE or key == wx.WXK_DELETE or key > 255:
+            event.Skip()
+            return
+
+        if chr(key).isdigit():
+            event.Skip()
+            return
+
+        if not wx.Validator.IsSilent():
+            wx.Bell()
+
+    def Clone(self):
+        return NumberValidator()
+
+    def Validate(self, parent):
+        return True
+
+    def TransferToWindow(self):
+        return True
+
+    def TransferFromWindow(self):
+        return True
 
 
 class MyFrame(wx.Frame):
@@ -8,196 +221,162 @@ class MyFrame(wx.Frame):
         super().__init__(None, title="Приложение с параметрами ПЭД",
                          style=wx.DEFAULT_FRAME_STYLE, size=(1600, 900))
 
-        # Устанавливаем минимальный размер окна
         self.SetMinSize((1400, 700))
 
-        # Создаем Notebook (блокнот с вкладками)
+        # Создаем Notebook с вкладками
         self.notebook = wx.Notebook(self)
 
         # Создаем четыре вкладки
-        self.tab1 = wx.Panel(self.notebook)
-        self.tab2 = wx.Panel(self.notebook)
-        self.tab3 = wx.Panel(self.notebook)
-        self.tab4 = wx.Panel(self.notebook)
+        tabs = []
+        for i in range(4):
+            tabs.append(wx.Panel(self.notebook))
+            self.notebook.AddPage(tabs[i], ["Основная", "Вторая", "Третья", "Четвертая"][i])
 
-        # Добавляем панели в блокнот с названиями вкладок
-        self.notebook.AddPage(self.tab1, "Основная")
-        self.notebook.AddPage(self.tab2, "Вторая")
-        self.notebook.AddPage(self.tab3, "Третья")
-        self.notebook.AddPage(self.tab4, "Четвертая")
+        # Настраиваем первую вкладку
+        self.setup_main_tab(tabs[0])
 
-        # На первой вкладке создаем четыре колонки
-        self.create_four_columns_on_tab1()
+        # Остальные вкладки - заглушки
+        for i in range(1, 4):
+            self.setup_stub_tab(tabs[i], f"Содержимое {['второй', 'третьей', 'четвертой'][i - 1]} вкладки")
 
-        # На остальных вкладках просто добавляем заглушки
-        self.add_stub_to_tab(self.tab2, "Содержимое второй вкладки")
-        self.add_stub_to_tab(self.tab3, "Содержимое третьей вкладки")
-        self.add_stub_to_tab(self.tab4, "Содержимое четвертой вкладки")
-
-        # Центрируем и показываем окно
         self.Centre()
         self.Show()
 
-    def create_four_columns_on_tab1(self):
-        """Создает четыре колонки на первой вкладке"""
-        # Создаем SplitterWindow для разделения на левую и правую части
-        splitter = wx.SplitterWindow(self.tab1)
-
-        # Левая панель (кнопки и элементы управления)
-        left_panel = wx.Panel(splitter)
-        left_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        # 1. Левая колонка - кнопки
-        buttons_panel = wx.Panel(left_panel)
-        self.create_buttons_column(buttons_panel)
-
-        # 2. Средняя колонка - TextCtrl и ListBox
-        controls_panel = wx.Panel(left_panel)
-        self.create_controls_column(controls_panel)
-
-        left_sizer.Add(buttons_panel, 0, wx.EXPAND | wx.ALL, 3)
-        left_sizer.Add(controls_panel, 0, wx.EXPAND | wx.ALL, 3)
-        left_panel.SetSizer(left_sizer)
-
-        # Правая панель (параметры и поиск протокола) с прокруткой
-        right_panel = scrolled.ScrolledPanel(splitter)
-        right_panel.SetupScrolling()
-        right_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        # 3. Правая колонка - таблица параметров
-        params_panel = wx.Panel(right_panel)
-        self.create_parameters_column(params_panel)
-
-        # 4. Четвертая колонка - форма поиска протокола
-        search_panel = wx.Panel(right_panel)
-        self.create_search_protocol_column(search_panel)
-
-        right_sizer.Add(params_panel, 1, wx.EXPAND | wx.ALL, 3)
-        right_sizer.Add(search_panel, 0, wx.EXPAND | wx.ALL, 3)
-        right_panel.SetSizer(right_sizer)
-
-        # Разделяем окно
-        splitter.SplitVertically(left_panel, right_panel, sashPosition=400)
-        splitter.SetMinimumPaneSize(400)
-
-        # Устанавливаем основной sizer для первой вкладки
-        tab_sizer = wx.BoxSizer(wx.VERTICAL)
-        tab_sizer.Add(splitter, 1, wx.EXPAND)
-        self.tab1.SetSizer(tab_sizer)
-
-    def add_stub_to_tab(self, tab, text):
-        """Добавляет заглушку на вкладку"""
+    def setup_stub_tab(self, tab, text):
         sizer = wx.BoxSizer(wx.VERTICAL)
         label = wx.StaticText(tab, label=text)
         sizer.Add(label, 0, wx.ALL, 20)
         tab.SetSizer(sizer)
 
-    def create_buttons_column(self, parent):
-        """Создает колонку с кнопками, которые заполняют всю высоту"""
-        # Используем BoxSizer, который растягивается на всю высоту
+    def setup_main_tab(self, tab):
+        splitter = wx.SplitterWindow(tab)
+
+        # Левая панель с кнопками и контролами
+        left_panel = wx.Panel(splitter)
+        left_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Колонка с кнопками
+        buttons_panel = wx.Panel(left_panel)
+        self.setup_buttons_column(buttons_panel)
+
+        # Колонка с контролами
+        controls_panel = wx.Panel(left_panel)
+        self.setup_controls_column(controls_panel)
+
+        left_sizer.Add(buttons_panel, 0, wx.EXPAND | wx.ALL, 3)
+        left_sizer.Add(controls_panel, 0, wx.EXPAND | wx.ALL, 3)
+        left_panel.SetSizer(left_sizer)
+
+        # Правая панель с параметрами и поиском
+        right_panel = scrolled.ScrolledPanel(splitter)
+        right_panel.SetupScrolling()
+        right_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Колонка с параметрами
+        params_panel = wx.Panel(right_panel)
+        self.setup_parameters_column(params_panel)
+
+        # Колонка с поиском протокола
+        search_panel = wx.Panel(right_panel)
+        self.setup_search_protocol_column(search_panel)
+
+        right_sizer.Add(params_panel, 1, wx.EXPAND | wx.ALL, 3)
+        right_sizer.Add(search_panel, 0, wx.EXPAND | wx.ALL, 3)
+        right_panel.SetSizer(right_sizer)
+
+        # Настройка разделителя
+        splitter.SplitVertically(left_panel, right_panel, sashPosition=400)
+        splitter.SetMinimumPaneSize(400)
+
+        # Основной sizer для вкладки
+        tab_sizer = wx.BoxSizer(wx.VERTICAL)
+        tab_sizer.Add(splitter, 1, wx.EXPAND)
+        tab.SetSizer(tab_sizer)
+
+    def setup_buttons_column(self, parent):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Список названий кнопок с иконками
-        button_data = [
-            ("Загрузить", wx.ART_FILE_OPEN),
-            ("Сохранить", wx.ART_FILE_SAVE),
-            ("Рассчитать", wx.ART_EXECUTABLE_FILE),
-            ("Очистить", wx.ART_DELETE),
-            ("Экспорт", wx.ART_GO_DIR_UP),
-            ("Импорт", wx.ART_GO_DOWN),
-            ("Печать", wx.ART_PRINT),
-            ("Настройки", wx.ART_LIST_VIEW),
-            ("Справка", wx.ART_HELP),
-            ("О программе", wx.ART_INFORMATION),
-            ("Инструмент 1", wx.ART_EXECUTABLE_FILE),
-            ("Инструмент 2", wx.ART_NORMAL_FILE),
-            ("Измерение", wx.ART_FIND),
-            ("Калибровка", wx.ART_EXECUTABLE_FILE),
-            ("Поиск", wx.ART_FIND_AND_REPLACE)
+        # Список кнопок
+        buttons = [
+            "📥 Загрузить", "💾 Сохранить", "🧮 Рассчитать", "🧹 Очистить",
+            "📊 Экспорт", "📁 Импорт", "🖨️ Печать", "⚙️ Настройки",
+            "❓ Справка", "ℹ️ О программе", "🔧 Инструмент 1", "🔨 Инструмент 2",
+            "📏 Измерение", "📐 Калибровка", "🔍 Поиск"
         ]
 
-        # Создаем кнопки с иконками и текстом
-        self.buttons = []
-        for text, art_id in button_data:
-            # Создаем кнопку с текстом
-            button = wx.Button(parent, label=text, size=(150, 40))
+        # Создаем кнопки и привязываем обработчики
+        for text in buttons:
+            btn = wx.Button(parent, label=text, size=(150, 40))
 
-            # Добавляем иконку, если она доступна
-            if art_id:
-                bmp = wx.ArtProvider.GetBitmap(art_id, wx.ART_BUTTON, (16, 16))
-                if bmp.IsOk():
-                    button.SetBitmap(bmp, wx.LEFT)
+            # Привязываем обработчик для кнопки "Загрузить"
+            if text.startswith("📥 Загрузить"):
+                btn.Bind(wx.EVT_BUTTON, self.on_load_button)
 
-            sizer.Add(button, 0, wx.EXPAND | wx.ALL, 2)
-            self.buttons.append(button)
+            sizer.Add(btn, 0, wx.EXPAND | wx.ALL, 2)
 
-        # Добавляем растягивающийся спейсер, чтобы кнопки занимали всю высоту
         sizer.AddStretchSpacer(1)
-
         parent.SetSizer(sizer)
 
-    def create_controls_column(self, parent):
-        """Создает колонку с TextCtrl и ListBox, которые заполняют всю высоту"""
+    def on_load_button(self, event):
+        """Обработчик нажатия кнопки Загрузить"""
+        # Создаем и показываем модальное диалоговое окно ExperienceOneDialog
+        dlg = ExperienceOneDialog(self)
+        # Установите file_protocol если нужно
+        # dlg.set_file_protocol("путь/к/файлу.xlsx")
+        dlg.ShowModal()
+        dlg.Destroy()  # Уничтожаем диалог после закрытия
+
+    def setup_controls_column(self, parent):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Добавляем TextCtrl
         self.text_ctrl = wx.TextCtrl(parent, size=(180, 25))
-        sizer.Add(self.text_ctrl, 0, wx.EXPAND | wx.ALL, 3)
-
-        # Добавляем ListBox, который растягивается на всю доступную высоту
         self.list_box = wx.ListBox(parent, size=(180, -1))
+
+        sizer.Add(self.text_ctrl, 0, wx.EXPAND | wx.ALL, 3)
         sizer.Add(self.list_box, 1, wx.EXPAND | wx.ALL, 3)
 
         parent.SetSizer(sizer)
 
-    def create_parameters_column(self, parent):
-        """Создает колонку с таблицей параметров, которая заполняет всю высоту"""
+    def setup_parameters_column(self, parent):
         # Список параметров
         parameters = [
-            ("Напряжение трансформатора, В", ""),
-            ("Номинальные параметры ПЭД", "header"),
-            ("Тип", ""),
-            ("Мощность, кВт", ""),
-            ("Напряжение, В", ""),
-            ("Ток, А", ""),
-            ("Частота вращения", ""),
-            ("Сопр. обмотки (Ом)", ""),
-            ("Сопр. изоляции, МОм", ""),
-            ("Напр. разгона, В", ""),
-            ("Момент проворачивания", ""),
-            ("Напр. к.з., В", ""),
-            ("Ток к.з., А", ""),
-            ("Потери к.з., кВт", ""),
-            ("Ток х.х., А", ""),
-            ("Напр. х.х., В", ""),
-            ("Потери х.х., кВт", ""),
-            ("Выбег, с", ""),
-            ("Вибрация, мм/с", ""),
-            ("Крутящий момент", ""),
-            ("Потери в нагр. сост.", ""),
-            ("Испыт. напр. изол., В", ""),
-            ("Испыт. изол. обм., В", ""),
-            ("Напр. опыта КЗ", "")
+            ("⚡ Напряжение трансформатора, В", ""),
+            ("📋 Номинальные параметры ПЭД", "header"),
+            ("🔧 Тип", ""),
+            ("💪 Мощность, кВт", ""),
+            ("⚡ Напряжение, В", ""),
+            ("🔌 Ток, А", ""),
+            ("🔄 Частота вращения", ""),
+            ("📏 Сопр. обмотки (Ом)", ""),
+            ("📊 Сопр. изоляции, МОм", ""),
+            ("🚀 Напр. разгона, В", ""),
+            ("⚙️ Момент проворачивания", ""),
+            ("⚡ Напр. к.з., В", ""),
+            ("🔌 Ток к.з., А", ""),
+            ("💥 Потери к.з., кВт", ""),
+            ("🔌 Ток х.х., А", ""),
+            ("⚡ Напр. х.х., В", ""),
+            ("💥 Потери х.х., кВт", ""),
+            ("⏱️ Выбег, с", ""),
+            ("📳 Вибрация, мм/с", ""),
+            ("⚙️ Крутящий момент", ""),
+            ("💥 Потери в нагр. сост.", ""),
+            ("⚡ Испыт. напр. изол., В", ""),
+            ("🔌 Испыт. изол. обм., В", ""),
+            ("⚡ Напр. опыта КЗ", "")
         ]
 
-        # Создаем сетку для параметров
         grid = wx.FlexGridSizer(len(parameters), 2, 5, 5)
-        grid.AddGrowableCol(1, 1)  # Разрешаем растягивание второй колонки
+        grid.AddGrowableCol(1, 1)
 
-        # Создаем шрифт для заголовка
-        bold_font = wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
-
-        # Добавляем параметры в сетку
         self.param_fields = {}
         for param, param_type in parameters:
             if param_type == "header":
-                # Заголовок - занимает всю ширину
                 header = wx.StaticText(parent, label=param)
-                header.SetFont(bold_font)
+                header.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
                 grid.Add(header, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 3)
-                grid.Add((0, 0), 0)  # Пустая ячейка
+                grid.Add((0, 0), 0)
             else:
-                # Обычный параметр
                 label = wx.StaticText(parent, label=param)
                 text_ctrl = wx.TextCtrl(parent, size=(150, -1))
                 self.param_fields[param] = text_ctrl
@@ -205,59 +384,49 @@ class MyFrame(wx.Frame):
                 grid.Add(label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 3)
                 grid.Add(text_ctrl, 0, wx.EXPAND | wx.ALL, 3)
 
-        # Устанавливаем сетку на панель
         parent.SetSizer(grid)
 
-    def create_search_protocol_column(self, parent):
-        """Создает колонку с формой поиска протокола, которая заполняет всю высоту"""
+    def setup_search_protocol_column(self, parent):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Заголовок
         title = wx.StaticText(parent, label="Найти протокол:")
         title.SetFont(wx.Font(11, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
         sizer.Add(title, 0, wx.ALL, 5)
 
-        # Таблица параметров протокола
+        # Параметры протокола
         protocol_params = [
-            ("Новый тест", "header"),
-            ("Номер протокола", ""),
-            ("Группа исполнения", ""),
-            ("Номер ЭД", ""),
-            ("Категория исполнения", ""),
-            ("Тип масла", ""),
-            ("Тип муфты", ""),
-            ("Дата и время", ""),
-            ("Проверка маркировки", ""),
-            ("Радиальное биение", ""),
-            ("Тип РТИ", ""),
-            ("Диаметр вала, мм", ""),
-            ("Тип ТМС/ конденсатора", ""),
-            ("Длительность обжатки", ""),
-            ("Вылет вала", ""),
-            ("Сочленение шлицевых соединений", ""),
-            ("Тип блока ТМС", ""),
-            ("Версия прошивки", ""),
-            ("Оператор", "")
+            ("🧪 Новый теста", "header"),
+            ("📋 Номер протокола", ""),
+            ("👥 Группа исполнения", ""),
+            ("🔢 Номер ЭД", ""),
+            ("🏷️ Категория исполнения", ""),
+            ("🛢️ Тип масла", ""),
+            ("🔩 Тип муфты", ""),
+            ("📅 Дата и время", ""),
+            ("🏷️ Проверка маркировки", ""),
+            ("📏 Радиальное биение", ""),
+            ("🔧 Тип РТИ", ""),
+            ("📐 Диаметр вала, мм", ""),
+            ("⚡ Тип ТМС/ конденсатора", ""),
+            ("⏱️ Длительность обжатки", ""),
+            ("📏 Вылет вала", ""),
+            ("🔗 Сочленение шлицевых соединений", ""),
+            ("🔌 Тип блока ТМС", ""),
+            ("💾 Версия прошивки", ""),
+            ("👤 Оператор", "")
         ]
 
-        # Создаем сетку для параметров протокола
         grid = wx.FlexGridSizer(len(protocol_params), 2, 5, 5)
-        grid.AddGrowableCol(1, 1)  # Разрешаем растягивание второй колонки
+        grid.AddGrowableCol(1, 1)
 
-        # Создаем шрифт для заголовка
-        bold_font = wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
-
-        # Добавляем параметры в сетку (поля ввода вместо чекбоксов)
         self.protocol_fields = {}
         for param, param_type in protocol_params:
             if param_type == "header":
-                # Заголовок - занимает всю ширину
                 header = wx.StaticText(parent, label=param)
-                header.SetFont(bold_font)
+                header.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
                 grid.Add(header, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 3)
-                grid.Add((0, 0), 0)  # Пустая ячейка
+                grid.Add((0, 0), 0)
             else:
-                # Обычный параметр с полем ввода
                 label = wx.StaticText(parent, label=param)
                 text_ctrl = wx.TextCtrl(parent, size=(150, -1))
                 self.protocol_fields[param] = text_ctrl
@@ -267,22 +436,15 @@ class MyFrame(wx.Frame):
 
         sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 5)
 
-        # Кнопки Сохранить и Редактировать
-        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # Кнопки внизу
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_save = wx.Button(parent, label="💾 Сохранить", size=(120, 40))
+        btn_edit = wx.Button(parent, label="✏️ Редактировать", size=(120, 40))
 
-        # Создаем кнопки
-        btn_save = wx.Button(parent, label="Сохранить", size=(120, 40))
-        btn_save.SetBitmap(wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE, wx.ART_BUTTON, (16, 16)), wx.LEFT)
+        btn_sizer.Add(btn_save, 0, wx.ALL, 5)
+        btn_sizer.Add(btn_edit, 0, wx.ALL, 5)
 
-        btn_edit = wx.Button(parent, label="Редактировать", size=(120, 40))
-        btn_edit.SetBitmap(wx.ArtProvider.GetBitmap(wx.ART_EDIT, wx.ART_BUTTON, (16, 16)), wx.LEFT)
-
-        button_sizer.Add(btn_save, 0, wx.ALL, 5)
-        button_sizer.Add(btn_edit, 0, wx.ALL, 5)
-
-        sizer.Add(button_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 5)
-
-        # Добавляем растягивающийся спейсер, чтобы форма занимала всю высоту
+        sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 5)
         sizer.AddStretchSpacer(1)
 
         parent.SetSizer(sizer)
