@@ -131,7 +131,7 @@ class ExperienceOneDialog(wx.Dialog):
         self.btn_save.SetBackgroundColour(wx.Colour(51, 255, 153))
         self.Refresh()
 
-        # Сохранение в Excel
+        # Сохранение в Excel ..//найти
         try:
             excel = win32.gencache.EnsureDispatch('Excel.Application')
             excel.Visible = False
@@ -139,7 +139,7 @@ class ExperienceOneDialog(wx.Dialog):
 
             workbook = excel.Workbooks.Open(self.file_protocol)
             sheet = workbook.Worksheets(1)
-            #
+
             sheet.Cells(22, 19).Value = self.txt_result.GetValue()
             sheet.Cells(22, 10).Value = nominal
 
