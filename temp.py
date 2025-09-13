@@ -131,7 +131,7 @@ class ExperienceOneDialog(wx.Dialog):
         self.btn_save.SetBackgroundColour(wx.Colour(51, 255, 153))
         self.Refresh()
 
-        # Сохранение в Excel
+        # Сохранение в Exceljjjj
         try:
             excel = win32.gencache.EnsureDispatch('Excel.Application')
             excel.Visible = False
