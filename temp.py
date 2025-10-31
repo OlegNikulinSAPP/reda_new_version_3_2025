@@ -320,7 +320,7 @@ class MyFrame(wx.Frame):
         # Создаем и показываем модальное диалоговое окно ExperienceOneDialog
         dlg = ExperienceOneDialog(self)
         # Установите file_protocol если нужно
-        # dlg.set_file_protocol("путь/к/файлу.xlsx")
+        dlg.set_file_protocol("file_protocol.xlsx")
         dlg.ShowModal()
         dlg.Destroy()  # Уничтожаем диалог после закрытия
 
